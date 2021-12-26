@@ -1,5 +1,6 @@
 import os
 from os import PathLike
+import re
 from typing import Union
 from typing import BinaryIO
 from typing import Iterator
@@ -8,7 +9,10 @@ from typing import Optional
 from typing import TypeAlias
 
 VERSION = "0.1.0"
+
 _ASSETS_EXT = ".assets"
+_SEEK_POSITIONS = [0x14, 0x30]
+_SEM_VER_PATTERN = r"^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)"
 
 PathType: TypeAlias = Union[AnyStr, PathLike[AnyStr]]
 
@@ -76,10 +80,17 @@ def _read_c_string(f: BinaryIO) -> str:
     return b''.join(iter(lambda: f.read(1), b'\x00')).decode("utf-8")
 
 
-def parse_unity_version(assets_file: PathType) -> str:
+def validate(value: str) -> bool:
+    return True if re.match(_SEM_VER_PATTERN, value) else False
+
+
+def parse_unity_version(assets_file: PathType) -> Optional[str]:
     with open(assets_file, "rb") as f:
-        f.seek(0x14)  # magic sauce
-        return _read_c_string(f)
+        for position in _SEEK_POSITIONS:
+            f.seek(position)
+            if (value := _read_c_string(f)) and validate(value):
+                return value
+    return None
 
 
 def find_any_assets_file(root: PathType) -> Optional[PathType]:
